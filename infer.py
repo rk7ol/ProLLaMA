@@ -157,6 +157,8 @@ def sequence_total_nll(
     sequences: list[str],
     batch_size: int,
     max_length: int | None,
+    progress_every: int,
+    label: str,
 ) -> list[float]:
     if not sequences:
         return []
@@ -164,7 +166,8 @@ def sequence_total_nll(
     all_nll: list[float] = []
     loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
 
-    for start in range(0, len(sequences), batch_size):
+    total = len(sequences)
+    for start in range(0, total, batch_size):
         batch = sequences[start : start + batch_size]
         enc = tokenizer(
             batch,
@@ -188,6 +191,8 @@ def sequence_total_nll(
         token_loss = token_loss * shift_mask
         seq_nll = token_loss.sum(dim=1)
         all_nll.extend([float(x) for x in seq_nll.detach().cpu().tolist()])
+        if progress_every and len(all_nll) % progress_every == 0:
+            print(f"  [{label}] processed {len(all_nll)}/{total}")
 
     return all_nll
 
@@ -250,9 +255,11 @@ def run_one_csv(
         sequences=wt_inputs,
         batch_size=batch_size,
         max_length=max_length,
+        progress_every=progress_every,
+        label="WT",
     )
     if progress_every:
-        print(f"  WT done ({len(nll_wt)} sequences)")
+        print(f"  [WT] done ({len(nll_wt)} sequences)")
     nll_mut = sequence_total_nll(
         model=model,
         tokenizer=tokenizer,
@@ -260,9 +267,11 @@ def run_one_csv(
         sequences=mut_inputs,
         batch_size=batch_size,
         max_length=max_length,
+        progress_every=progress_every,
+        label="MUT",
     )
     if progress_every:
-        print(f"  MUT done ({len(nll_mut)} sequences)")
+        print(f"  [MUT] done ({len(nll_mut)} sequences)")
 
     pred_scores = [(-nm + nw) for nw, nm in zip(nll_wt, nll_mut)]
     rho, pval = compute_spearman(pred_scores, true_scores)
