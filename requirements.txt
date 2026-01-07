@@ -5,3 +5,6 @@ peft
 deepspeed
 accelerate
 datasets
+pandas
+scipy
+tqdm
